@@ -18,6 +18,7 @@ require "date"
 $token  = ""
 $domain = ""
 $userid = ""
+$team_ids = ""
 #--------------------------------------------------------------------
 
 class PagerDuty
@@ -82,7 +83,8 @@ class PagerDuty
         out = HTTParty.get("https://#{$domain}.pagerduty.com/api/v1/incidents",
                            timeout: 25,
                            query:   { "since" => (Time.now-24*60*60).strftime("%Y-%m-%dT%H:%M:%S"),
-                                      "sort_by" => "created_on:desc" },
+                                      "sort_by" => "created_on:desc",
+				      "teams" => $team_ids },
                            headers: { "Content-type" => "application/json",
                                       "Authorization" => "Token token=#{$token}"})
 
@@ -127,8 +129,17 @@ class PagerDuty
                 desc = incident['trigger_summary_data']['description'] if incident['trigger_summary_data'].include?('description')
 
                 bash = "bash=#{File.expand_path(__FILE__)} param1=#{option} param2=#{incident['id']}" unless incident['status'].eql?("resolved")
-                puts "#{count}#{urgency} [#{incident['created_on'].split(/[TZ]/)[1]}] #{incident['incident_key']}#{urgency}|color=#{color} #{bash} refresh=true terminal=false length=100"
-                puts "#{desc}|color=#{$color['normal']} size=11 length=100"
+                time = Time.parse(incident['created_on']).localtime.strftime("%H:%M:%S")
+                puts "#{count}#{urgency} [#{time}] #{incident['incident_key']}#{urgency}|color=#{color} #{bash} refresh=true terminal=false length=100"
+				client_url = incident['html_url']
+				client_url = incident['trigger_summary_data']['client_url'] unless incident['trigger_summary_data'].empty? or incident['trigger_summary_data']['client_url'].nil?
+				client_url.gsub!(" ","%20")
+				if desc.length >= 100
+                    puts "#{desc[0..99]}...|color=#{$color['normal']} size=11 href=#{client_url}"
+				    puts "...#{desc[100..200]}|alternate=true color=#{$color['normal']} size=11"
+				else
+                    puts "#{desc}...|color=#{$color['normal']} size=11 href=#{client_url}"
+				end
                 puts "---"
             }
         end
